@@ -17,7 +17,6 @@ import { App, Editor, MarkdownView, Plugin, PluginSettingTab, Setting } from "ob
 
 
 interface ScrollingPluginSettings {
-    scrollbar_hidden: boolean;
     mouse_scroll_enabled: boolean;
     mouse_scroll_speed: number;
     mouse_scroll_smoothness: number;
@@ -28,11 +27,13 @@ interface ScrollingPluginSettings {
     center_cursor_editing_smoothness: number;
     center_cursor_moving_smoothness: number;
     center_cursor_enable_mouse: boolean;
+    scrollbar_global: boolean;
+    scrollbar_visibility: string;
+    scrollbar_width: number;
 }
 
 
 const DEFAULT_SETTINGS: ScrollingPluginSettings = {
-    scrollbar_hidden: false,
     mouse_scroll_enabled: true,
     mouse_scroll_speed: 1,
     mouse_scroll_smoothness: 1,
@@ -43,6 +44,9 @@ const DEFAULT_SETTINGS: ScrollingPluginSettings = {
     center_cursor_editing_smoothness: 1,
     center_cursor_moving_smoothness: 1,
     center_cursor_enable_mouse: false,
+    scrollbar_global: false,
+    scrollbar_visibility: "show",
+    scrollbar_width: 5,
 }
 
 
@@ -55,7 +59,6 @@ export default class ScrollingPlugin extends Plugin {
 
     last_selectionchange: number;
     smoothscroll_timeout: any;
-    scrollbar_hide_style: HTMLStyleElement | undefined;
 
     async onload() {
         await this.loadSettings();
@@ -159,18 +162,18 @@ export default class ScrollingPlugin extends Plugin {
     apply_scrollbar_hide() {
         console.log("invoked")
         // Updates the scrollbar hide style according to the current setting value
-        if (!this.settings.scrollbar_hidden) {
+        if (this.settings.scrollbar_visibility === "show") {
             this.remove_scrollbar_hide()
             console.log("call remove")
             return;
         }
         console.log("dont call remove")
 
-        if (this.scrollbar_hide_style) return;
+        if (document.getElementById("scrolling-scrollbar-style") !== null) return;
         console.log("create new")
 
         const style = document.createElement('style');
-        style.id = 'hide-md-scrollbar-style';
+        style.id = 'scrolling-scrollbar-style';
         style.textContent = `
             /* Hide scrollbar in the editor pane */
             .markdown-source-view,
@@ -182,16 +185,12 @@ export default class ScrollingPlugin extends Plugin {
             .cm-scroller::-webkit-scrollbar {
               display: none !important; /* Chrome, Safari, Opera */
             }
-          `;
+        `;
         document.head.appendChild(style);
-        this.scrollbar_hide_style = style;
     }
 
     remove_scrollbar_hide() {
-        if (this.scrollbar_hide_style && this.scrollbar_hide_style.parentNode) {
-            this.scrollbar_hide_style.parentNode.removeChild(this.scrollbar_hide_style);
-            this.scrollbar_hide_style = undefined;
-        }
+        document.getElementById("scrolling-scrollbar-style")?.remove();
     }
 }
 
@@ -208,27 +207,9 @@ class ScrollingSettingTab extends PluginSettingTab {
         const containerEl = this.containerEl;
         containerEl.empty();
 
-        // General settings
-        new Setting(containerEl)
-            .setName("General settings")
-            .setHeading();
-
-        new Setting(containerEl)
-            .setName("Hide markdown scrollbar")
-            .setDesc("Whether to hide the scrollbar in markdown documents.")
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.scrollbar_hidden)
-                .onChange(async (value) => {
-                    this.plugin.settings.scrollbar_hidden = value;
-                    await this.plugin.saveSettings();
-                    this.plugin.apply_scrollbar_hide();
-                })
-            );
-
         // Mouse scrolling settings
-        new Setting(containerEl);
         new Setting(containerEl)
-            .setName("Mouse Scrolling")
+            .setName("Mouse scrolling")
             .setHeading();
 
         new Setting(containerEl)
@@ -387,7 +368,6 @@ class ScrollingSettingTab extends PluginSettingTab {
 
             new Setting(containerEl)
                 .setName("Scroll animation when editing")
-                .setDesc("")
                 .setDesc(createFragment(frag => {
                     frag.createDiv({}, div => div.innerHTML =
                         "Adjusts the smoothness of scrolling when editing moves the cursor outside the central zone.<br>" +
@@ -442,7 +422,6 @@ class ScrollingSettingTab extends PluginSettingTab {
                     })
                 );
 
-
             new Setting(containerEl)
                 .setName("Invoke on mouse-driven cursor movement")
                 .setDesc(createFragment(frag => {
@@ -459,5 +438,74 @@ class ScrollingSettingTab extends PluginSettingTab {
                     })
                 );
         }
+
+        // Scrollbar appearance settings
+        new Setting(containerEl);
+        new Setting(containerEl)
+            .setName("Scrollbar appearance")
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName("Apply to all scrollbars")
+            .setDesc("Whether the following options should apply to all scrollbars in obsidian or only scrollbars in markdown files.")
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.scrollbar_global)
+                .onChange(async (value) => {
+                    this.plugin.settings.scrollbar_global = value;
+                    await this.plugin.saveSettings();
+                    this.display();
+                })
+            );
+
+        // dropdown menu: hide all, hide bars (only markdown file), show bars while scrolling, show bar while scrolling (only markdown file), show all
+        new Setting(containerEl)
+            .setName("Scrollbar visibility")
+            .setDesc("When to show scrollbars.")
+            .addExtraButton(button => {
+                button
+                    .setIcon('reset')
+                    .setTooltip('Restore default')
+                    .onClick(async () => {
+                        this.plugin.settings.scrollbar_visibility = DEFAULT_SETTINGS.scrollbar_visibility
+                        await this.plugin.saveSettings()
+                        this.display();
+                    });
+            })
+            .addDropdown(dropdown => dropdown
+                .addOption("hide", "Always hide scrollbars")
+                .addOption("scroll", "Show scrollbars while scrolling")
+                .addOption("show", "Always show scrollbars")
+                .setValue(this.plugin.settings.scrollbar_visibility)
+                .onChange(async (value) => {
+                    this.plugin.settings.scrollbar_visibility = value;
+                    await this.plugin.saveSettings();
+                    this.plugin.apply_scrollbar_hide();
+                })
+            )
+
+        new Setting(containerEl)
+            .setName("Scrollbar thickness")
+            .setDesc("Width of scrollbars in px.")
+            .addExtraButton(button => {
+                button
+                    .setIcon('reset')
+                    .setTooltip('Restore default')
+                    .onClick(async () => {
+                        this.plugin.settings.scrollbar_width = DEFAULT_SETTINGS.scrollbar_width
+                        await this.plugin.saveSettings()
+                        this.display();
+                    });
+            })
+            .addSlider(slider => slider
+                .setValue(this.plugin.settings.scrollbar_width)
+                .setLimits(0, 20, 1)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.scrollbar_width = value;
+                    await this.plugin.saveSettings();
+                })
+            );
+
+
     }
 }
