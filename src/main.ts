@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: ScrollingPluginSettings = {
     center_cursor_enable_mouse: false,
     scrollbar_global: false,
     scrollbar_visibility: "show",
-    scrollbar_width: 5,
+    scrollbar_width: 12,
 }
 
 
@@ -73,12 +73,12 @@ export default class ScrollingPlugin extends Plugin {
         this.registerDomEvent(document, "mousedown", () => this.mousedown_callback());
         this.registerDomEvent(document, "mouseup", () => this.mouseup_callback());
 
-        this.apply_scrollbar_hide();
+        this.update_scrollbar_css()
         console.log("ScrollingPlugin loaded");
     }
 
     async onunload() {
-        this.remove_scrollbar_hide();
+        this.remove_css();
         console.log("ScrollingPlugin unloaded");
     }
 
@@ -159,37 +159,65 @@ export default class ScrollingPlugin extends Plugin {
         this.smoothscroll_timeout = setTimeout(() => this.smoothscroll(editor, dest, step_size, time, step - 1), time);
     }
 
-    apply_scrollbar_hide() {
-        console.log("invoked")
-        // Updates the scrollbar hide style according to the current setting value
-        if (this.settings.scrollbar_visibility === "show") {
-            this.remove_scrollbar_hide()
-            console.log("call remove")
-            return;
-        }
-        console.log("dont call remove")
-
-        if (document.getElementById("scrolling-scrollbar-style") !== null) return;
-        console.log("create new")
+    update_scrollbar_css() {
+        this.remove_css()
 
         const style = document.createElement('style');
         style.id = 'scrolling-scrollbar-style';
-        style.textContent = `
-            /* Hide scrollbar in the editor pane */
-            .markdown-source-view,
-            .cm-scroller {
-              scrollbar-width: none !important; /* Firefox */
-              -ms-overflow-style: none !important; /* IE 10+ */
-            }
-            .markdown-source-view::-webkit-scrollbar,
-            .cm-scroller::-webkit-scrollbar {
-              display: none !important; /* Chrome, Safari, Opera */
-            }
-        `;
+        const global = this.settings.scrollbar_global;
+
+        let display: string | undefined;
+        let color: string | undefined;
+
+        const visibility = this.settings.scrollbar_visibility;
+        if (visibility == "hide") {
+            display = "none";
+        } else if (visibility == "scroll") {
+            color = "transparent";
+        }
+
+        const width = this.settings.scrollbar_width;
+        if (width == 0) {
+            display = "none";
+        }
+
+        if (global) {
+            style.textContent = `
+* {
+  ${width > 0 ? `scrollbar-width: ${width}px !important;` : ""}
+  ${display !== undefined ? `-ms-overflow-style: ${display};` : ""}
+}
+*::-webkit-scrollbar {
+  ${width > 0 ? `width: ${width}px !important;` : ""}
+  ${display !== undefined ? `display: ${display};` : ""}
+}
+*::-webkit-scrollbar-thumb {
+  ${color !== undefined ? `background-color: ${color} !important;` : ""}
+}
+`;
+        } else {
+            style.textContent = `
+.markdown-source-view,
+.cm-scroller {
+  ${width > 0 ? `scrollbar-width: ${width}px !important;` : ""}
+  ${display !== undefined ? `-ms-overflow-style: ${display};` : ""}
+}
+.markdown-source-view::-webkit-scrollbar,
+.cm-scroller::-webkit-scrollbar {
+  ${width > 0 ? `width: ${width}px !important;` : ""}
+  ${display !== undefined ? `display: ${display};` : ""}
+}
+.markdown-source-view::-webkit-scrollbar-thumb,
+.cm-scroller::-webkit-scrollbar-thumb {
+  ${color !== undefined ? `background-color: ${color} !important;` : ""}
+}
+`;
+        }
+
         document.head.appendChild(style);
     }
 
-    remove_scrollbar_hide() {
+    remove_css() {
         document.getElementById("scrolling-scrollbar-style")?.remove();
     }
 }
@@ -219,8 +247,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.mouse_scroll_enabled)
                 .onChange(async (value) => {
                     this.plugin.settings.mouse_scroll_enabled = value;
-                    await this.plugin.saveSettings();
                     this.display();
+                    await this.plugin.saveSettings();
                 })
             );
 
@@ -235,8 +263,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.mouse_scroll_speed = DEFAULT_SETTINGS.mouse_scroll_speed
-                            await this.plugin.saveSettings()
                             this.display();
+                            await this.plugin.saveSettings()
                         });
                 })
                 .addSlider(slider => slider
@@ -258,8 +286,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.mouse_scroll_smoothness = DEFAULT_SETTINGS.mouse_scroll_smoothness
-                            await this.plugin.saveSettings()
                             this.display()
+                            await this.plugin.saveSettings()
                         })
                 })
                 .addSlider(slider => slider
@@ -302,8 +330,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.center_cursor_enabled)
                 .onChange(async (value) => {
                     this.plugin.settings.center_cursor_enabled = value;
-                    await this.plugin.saveSettings();
                     this.display();
+                    await this.plugin.saveSettings();
                 })
             );
 
@@ -323,8 +351,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.center_cursor_editing_distance = DEFAULT_SETTINGS.center_cursor_editing_distance
-                            await this.plugin.saveSettings()
                             this.display();
+                            await this.plugin.saveSettings()
                         });
                 })
                 .addSlider(slider => slider
@@ -352,8 +380,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.center_cursor_moving_distance = DEFAULT_SETTINGS.center_cursor_moving_distance
-                            await this.plugin.saveSettings()
                             this.display();
+                            await this.plugin.saveSettings()
                         });
                 })
                 .addSlider(slider => slider
@@ -380,8 +408,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.center_cursor_editing_smoothness = DEFAULT_SETTINGS.center_cursor_editing_smoothness
-                            await this.plugin.saveSettings()
                             this.display();
+                            await this.plugin.saveSettings()
                         });
                 })
                 .addSlider(slider => slider
@@ -408,8 +436,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                         .setTooltip('Restore default')
                         .onClick(async () => {
                             this.plugin.settings.center_cursor_moving_smoothness = DEFAULT_SETTINGS.center_cursor_moving_smoothness
-                            await this.plugin.saveSettings()
                             this.display();
+                            await this.plugin.saveSettings()
                         });
                 })
                 .addSlider(slider => slider
@@ -452,8 +480,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.scrollbar_global)
                 .onChange(async (value) => {
                     this.plugin.settings.scrollbar_global = value;
+                    this.plugin.update_scrollbar_css()
                     await this.plugin.saveSettings();
-                    this.display();
                 })
             );
 
@@ -467,8 +495,8 @@ class ScrollingSettingTab extends PluginSettingTab {
                     .setTooltip('Restore default')
                     .onClick(async () => {
                         this.plugin.settings.scrollbar_visibility = DEFAULT_SETTINGS.scrollbar_visibility
+                        this.plugin.update_scrollbar_css()
                         await this.plugin.saveSettings()
-                        this.display();
                     });
             })
             .addDropdown(dropdown => dropdown
@@ -478,34 +506,38 @@ class ScrollingSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.scrollbar_visibility)
                 .onChange(async (value) => {
                     this.plugin.settings.scrollbar_visibility = value;
+                    this.plugin.update_scrollbar_css()
+                    this.display()
                     await this.plugin.saveSettings();
-                    this.plugin.apply_scrollbar_hide();
                 })
             )
 
-        new Setting(containerEl)
-            .setName("Scrollbar thickness")
-            .setDesc("Width of scrollbars in px.")
-            .addExtraButton(button => {
-                button
-                    .setIcon('reset')
-                    .setTooltip('Restore default')
-                    .onClick(async () => {
-                        this.plugin.settings.scrollbar_width = DEFAULT_SETTINGS.scrollbar_width
-                        await this.plugin.saveSettings()
-                        this.display();
-                    });
-            })
-            .addSlider(slider => slider
-                .setValue(this.plugin.settings.scrollbar_width)
-                .setLimits(0, 20, 1)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.scrollbar_width = value;
-                    await this.plugin.saveSettings();
+        if (this.plugin.settings.scrollbar_visibility !== "hide") {
+            new Setting(containerEl)
+                .setName("Scrollbar thickness")
+                .setDesc("Width of scrollbars in px.")
+                .addExtraButton(button => {
+                    button
+                        .setIcon('reset')
+                        .setTooltip('Restore default')
+                        .onClick(async () => {
+                            this.plugin.settings.scrollbar_width = DEFAULT_SETTINGS.scrollbar_width
+                            this.plugin.update_scrollbar_css()
+                            this.display()
+                            await this.plugin.saveSettings()
+                        });
                 })
-            );
-
+                .addSlider(slider => slider
+                    .setValue(this.plugin.settings.scrollbar_width)
+                    .setLimits(0, 30, 1)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        this.plugin.settings.scrollbar_width = value;
+                        this.plugin.update_scrollbar_css()
+                        await this.plugin.saveSettings();
+                    })
+                );
+        }
 
     }
 }
